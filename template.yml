@@ -75,13 +75,13 @@ Resources:
                 sudo chown ubuntu:ubuntu /home/ubuntu/.kube/config
                 kubectl taint nodes --all node-role.kubernetes.io/master-
                 kubectl taint nodes --all node-role.kubernetes.io/control-plane-
-                echo "MakeMasterNode" > /home/ubuntu/done.txt
+                echo "crete master node : ${SelectImageType}" > /home/ubuntu/install.txt
             -
               !Sub |
                 #!/bin/bash -xe
                 hostnamectl set-hostname master01
                 curl https://projectcalico.docs.tigera.io/manifests/calico.yaml -o /home/ubuntu/calico.yaml
-                echo "KubeAdmin" > /home/ubuntu/done.txt
+                echo "create master node: ${SelectImageType}" > /home/ubuntu/install.txt
 
   MasterNodeEIP:
     Type: 'AWS::EC2::EIP'
