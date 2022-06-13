@@ -1,3 +1,9 @@
+# CKA - helper repo
+
+##### Content
+- template.yml - cloud formation script to create master node (tools / kubernetes cluster / base server)
+- 
+
 ### Installing Kubeadmin 
 ##### NOTE:
 - makes sure you have install container runtime ( Kubeadnin will automatically detect it)
