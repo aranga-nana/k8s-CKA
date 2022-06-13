@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: K8s Tools / Master Node
+
+Parameters:
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  CreateDNSRecords:
+    Type: String
+    Description: Yes, if you have public Hosted Zone and private Hosted Zone set up
+    AllowedValues:
+      - "Yes"
+      - "No"
+  LocalDns:
+    Type: String
+    Default: k8s.local
+  DnsName:
+    Type: String
+    Default: learn.acnonline.net
+  SelectImageType:
+    Type: String
+    AllowedValues:
+      - KubeAdmin
+      - MasterNode
+      - UbuntuBase
+
+Conditions:
+  CreateDNS: !Equals
+    - !Ref CreateDNSRecords
+    - "Yes"
+  MasterNode: !Equals
+    - !Ref SelectImageType
+    - MasterNode
+
+Mappings:
+  ImageMap:
+    KubeAdmin:
+      ImageName: ami-0e670ea0d71f79b88
+    MasterNode:
+      ImageName: ami-0e670ea0d71f79b88
+    UbuntuBase:
+      ImageName: ami-0d539270873f66397
+Resources:
+
+  MasterNode:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !FindInMap [ImageMap, !Ref SelectImageType, ImageName]
+      InstanceType: t3.medium
+      KeyName: K8sAu
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          Description: "ENI FOR Master Node"
+          NetworkInterfaceId: !Ref MasterNodeENI
+      Tags:
+        -
+          Key: Name
+          Value: master01
+      UserData:
+        Fn::Base64:
+          Fn::If:
+            - MasterNode
+            -
+              !Sub |
+                #!/bin/bash -xe
+                hostnamectl set-hostname master01
+                kubeadm init --pod-network-cidr 10.88.0.0/16
+                export KUBECONFIG=/etc/kubernetes/admin.conf
+                curl https://projectcalico.docs.tigera.io/manifests/calico.yaml -o /tmp/calico.yaml
+                kubectl apply -f /tmp/calico.yaml
+                mkdir -p /home/ubuntu/.kube
+                cp -i /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+                sudo chown ubuntu:ubuntu /home/ubuntu/.kube/config
+                kubectl taint nodes --all node-role.kubernetes.io/master-
+                kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+                echo "MakeMasterNode" > /home/ubuntu/done.txt
+            -
+              !Sub |
+                #!/bin/bash -xe
+                hostnamectl set-hostname master01
+                curl https://projectcalico.docs.tigera.io/manifests/calico.yaml -o /home/ubuntu/calico.yaml
+                echo "KubeAdmin" > /home/ubuntu/done.txt
+
+  MasterNodeEIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      InstanceId: !Ref MasterNode
+      Tags:
+        -
+          Key: Name
+          Value: K8S
+
+  MasterNodeENI:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: ENI For Master Node.
+      SourceDestCheck: 'false'
+      GroupSet:
+      - !Ref SecurityGroup
+      SubnetId: !Ref SubnetId
+      Tags:
+       -
+         Key: Name
+         Value: K8S
+
+  LocalDnsRecords:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDNS
+    DependsOn:
+     - MasterNodeENI
+     - MasterNode
+    Properties:
+      HostedZoneName: !Sub "${LocalDns}."
+      Name : !Sub "master01.${LocalDns}"
+      ResourceRecords:
+        - !GetAtt MasterNodeENI.PrimaryPrivateIpAddress
+      TTL: 30
+      Type: A
+
+  PublicDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDNS
+    DependsOn:
+     - MasterNodeEIP
+    Properties:
+      HostedZoneName: !Sub "${DnsName}."
+      Name : !Sub "master01.${DnsName}"
+      ResourceRecords:
+        - !Ref MasterNodeEIP
+      TTL: 30
+      Type: A
+
+Outputs:
+  PublicIPAddress:
+    Description:  "Public ip address to connect (master node)"
+    Value: !Ref MasterNodeEIP
+  DNSName:
+    Description: "FQDN Masternode "
+    Value: !Sub "master01.${DnsName}"
+    Condition: CreateDNS
