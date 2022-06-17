@@ -7,6 +7,9 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
+  KeyName:
+    Type: String
+    Default: K8sAu   
   CreateDNSRecords:
     Type: String
     Description: Yes, if you have public Hosted Zone and private Hosted Zone set up
@@ -49,7 +52,7 @@ Resources:
     Properties:
       ImageId: !FindInMap [ImageMap, !Ref SelectImageType, ImageName]
       InstanceType: t3.medium
-      KeyName: K8sAu
+      KeyName: !Ref KeyName
       NetworkInterfaces:
         - DeviceIndex: 0
           Description: "ENI FOR Master Node"
